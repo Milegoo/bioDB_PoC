@@ -1,33 +1,78 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
+import { useState, useEffect } from 'react'
 import './App.css'
+import { createDbWorker } from "sql.js-httpvfs"
+
+// sadly there's no good way to package workers and wasm directly so you need a way to get these two URLs from your bundler.
+// This is the webpack5 way to create a asset bundle of the worker and wasm:
+const workerUrl = new URL(
+  "sqlite.worker.js",
+  `${window.location.origin}/bioDB_PoC/`
+);
+const wasmUrl = new URL(
+  "sql-wasm.wasm",
+  `${window.location.origin}/bioDB_PoC/`
+);
+
+console.log(workerUrl.toString())
+console.log(wasmUrl.toString());
+
+// the legacy webpack4 way is something like `import wasmUrl from "file-loader!sql.js-httpvfs/dist/sql-wasm.wasm"`.
+
+// the config is either the url to the create_db script, or a inline configuration:
+const config = {
+  from: "inline",
+  config: {
+    serverMode: "full", // file is just a plain old full sqlite database
+    requestChunkSize: 4096, // the page size of the  sqlite database (by default 4096)
+    url: "/bioDB_PoC/pocBioDB.db" // url to the database (relative or full)
+  }
+};
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [data, setData] = useState(null)
+  const [worker, setWorker] = useState(null);
+
+
+  useEffect(() => {
+    async function initWorker() {
+      try {
+        let maxBytesToRead = 10 * 1024 * 1024;
+        console.log("maxBytes");
+        const dbWorker = await createDbWorker([config], workerUrl.toString(), wasmUrl.toString(), maxBytesToRead);
+        console.log("Worker de SQLite creado");
+        setWorker(dbWorker);
+        console.log("Worker de SQLite inicializado");
+      } catch (error) {
+        console.error("Error al inicializar el worker:", error);
+      }
+    }
+    initWorker();
+  }, []);
+
+  async function getBioSamples() {
+    if (!worker) {
+      console.error("El worker aún no está listo");
+      return;
+    }
+
+    try {
+      const result = await worker.db.query("SELECT * FROM biological_samples");
+      setData(result);
+    } catch (error) {
+      console.error("Error al hacer la consulta:", error);
+    }
+  }
 
   return (
     <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
+      <h1>Get biological samples</h1>
       <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
+        <button onClick={() => getBioSamples()} className="btn">Get Samples</button>
       </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
+      <div>
+        <h2>Biological samples</h2>
+        <pre>{JSON.stringify(data, null, 2)}</pre>
+      </div>
     </>
   )
 }
