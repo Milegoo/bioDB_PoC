@@ -24,7 +24,7 @@ const config = {
   config: {
     serverMode: "full", // file is just a plain old full sqlite database
     requestChunkSize: 4096, // the page size of the  sqlite database (by default 4096)
-    url: "/bioDB_PoC/pocBioDB.db.bin" // url to the database (relative or full)
+    url: "/bioDB_PoC/pocBioDB.db.gz" // url to the database (relative or full)
   }
 };
 
